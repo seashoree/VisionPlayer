@@ -1,2 +1,2 @@
 # VisionPlayer
-Playing tic-tac-toe with eyes
+Play tic-tac-toe with eyes
