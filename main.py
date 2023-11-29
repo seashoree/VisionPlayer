@@ -4,6 +4,8 @@
 
 from tkinter import *
 import numpy as np
+import cv2
+from GazeTracking.gaze_tracking import GazeTracking
 
 size_of_board = 900
 symbol_size = (size_of_board / 3 - size_of_board / 8) / 2
@@ -13,10 +15,13 @@ symbol_O_color = '#0492CF'
 Green_color = '#7BC043'
 
 
+#hyperparameter for eyes
+left_threhold = 690
+right_threhold = 650
+up_threhold = 275
+down_threhold = 290
+
 class Tic_Tac_Toe():
-    # ------------------------------------------------------------------
-    # Initialization Functions:
-    # ------------------------------------------------------------------
     def __init__(self):
         self.window = Tk()
         self.window.title('Tic-Tac-Toe')
@@ -24,7 +29,6 @@ class Tic_Tac_Toe():
         self.canvas.pack()
         # Input from user in form of clicks
         self.window.bind('<Button-1>', self.click)
-
         self.initialize_board()
         self.player_X_turns = True
         self.board_status = np.zeros(shape=(3, 3))
@@ -80,7 +84,6 @@ class Tic_Tac_Toe():
                                 fill=symbol_X_color)
 
     def display_gameover(self):
-
         if self.X_wins:
             self.X_score += 1
             text = 'Winner: Player 1 (X)'
@@ -122,8 +125,21 @@ class Tic_Tac_Toe():
         return (size_of_board / 3) * logical_position + size_of_board / 6
 
     def convert_grid_to_logical_position(self, grid_position):
-        grid_position = np.array(grid_position)
-        return np.array(grid_position // (size_of_board / 3), dtype=int)
+        logical_position = np.array(grid_position, dtype=int)
+        if grid_position[0]>left_threhold:
+            logical_position[0]=0
+        elif grid_position[0]<right_threhold:
+            logical_position[0]=2
+        else:
+            logical_position[0]=1
+
+        if grid_position[1]>down_threhold:
+            logical_position[1]=2
+        elif grid_position[1]<up_threhold:
+            logical_position[1]=0
+        else:
+            logical_position[1]=1
+        return logical_position
 
     def is_grid_occupied(self, logical_position):
         if self.board_status[logical_position[0]][logical_position[1]] == 0:
@@ -132,9 +148,7 @@ class Tic_Tac_Toe():
             return True
 
     def is_winner(self, player):
-
         player = -1 if player == 'X' else 1
-
         # Three in a row
         for i in range(3):
             if self.board_status[i][0] == self.board_status[i][1] == self.board_status[i][2] == player:
@@ -152,7 +166,6 @@ class Tic_Tac_Toe():
         return False
 
     def is_tie(self):
-
         r, c = np.where(self.board_status == 0)
         tie = False
         if len(r) == 0:
@@ -177,13 +190,42 @@ class Tic_Tac_Toe():
             print('O wins')
         if self.tie:
             print('Its a tie')
-
         return gameover
+    
+    def click(self,event):
+        #user_input = input()
+        #if user_input=='':
+        # We get a new frame from the webcam
+        _, frame = webcam.read()
 
-    def click(self, event):
-        grid_position = [event.x, event.y]
+        # We send this frame to GazeTracking to analyze it
+        gaze.refresh(frame)
+
+        frame = gaze.annotated_frame()
+        text = ""
+
+        """
+        if gaze.is_blinking():
+            text = "Blinking"
+        elif gaze.is_right():
+            text = "Looking right"
+        elif gaze.is_left():
+            text = "Looking left"
+        elif gaze.is_center():
+            text = "Looking center"
+        """
+        #add gaze 
+        cv2.putText(frame, text, (90, 60), cv2.FONT_HERSHEY_DUPLEX, 1.6, (147, 58, 31), 2)
+
+        left_pupil = gaze.pupil_left_coords()
+        right_pupil = gaze.pupil_right_coords()
+        cv2.putText(frame, "Left pupil:  " + str(left_pupil), (90, 130), cv2.FONT_HERSHEY_DUPLEX, 0.9, (147, 58, 31), 1)
+        cv2.putText(frame, "Right pupil: " + str(right_pupil), (90, 165), cv2.FONT_HERSHEY_DUPLEX, 0.9, (147, 58, 31), 1)
+        cv2.imshow("Demo", frame)
+
+        grid_position = [(left_pupil[0]+right_pupil[0])/2, (left_pupil[1]+right_pupil[1])/2]
         logical_position = self.convert_grid_to_logical_position(grid_position)
-
+        print(logical_position)
         if not self.reset_board:
             if self.player_X_turns:
                 if not self.is_grid_occupied(logical_position):
@@ -205,10 +247,41 @@ class Tic_Tac_Toe():
             self.play_again()
             self.reset_board = False
 
+"""
+    def click(self, event):
+        grid_position = [event.x, event.y]
+        logical_position = self.convert_grid_to_logical_position(grid_position)
+        if not self.reset_board:
+            if self.player_X_turns:
+                if not self.is_grid_occupied(logical_position):
+                    self.draw_X(logical_position)
+                    self.board_status[logical_position[0]][logical_position[1]] = -1
+                    self.player_X_turns = not self.player_X_turns
+            else:
+                if not self.is_grid_occupied(logical_position):
+                    self.draw_O(logical_position)
+                    self.board_status[logical_position[0]][logical_position[1]] = 1
+                    self.player_X_turns = not self.player_X_turns
+
+            # Check if game is concluded
+            if self.is_gameover():
+                self.display_gameover()
+                # print('Done')
+        else:  # Play Again
+            self.canvas.delete("all")
+            self.play_again()
+            self.reset_board = False
+"""
+#open gaze detect
+gaze = GazeTracking()
+webcam = cv2.VideoCapture(0)
 
 
 game_instance = Tic_Tac_Toe()
 game_instance.mainloop()
 
+#close gaze detect
+webcam.release()
+cv2.destroyAllWindows()
 
 
